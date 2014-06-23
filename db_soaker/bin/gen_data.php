@@ -185,65 +185,41 @@ $cursor_pos = "\033[6;0f";
 echo $cursor_pos . str_repeat('_', $cols * $column_size);
 
 while ($i <= $total_rows) {
-
-	//let's randomly pick something to do. crud
-	$weights 	= array_values($what_to_do[$table_name]['CRUD']);
-	$strings 	= array_keys($what_to_do[$table_name]['CRUD']);
-	$index 		= grabWeightedIndex($weights);
-	$todo 		= $strings[$index];
-
-	usleep(rand($what_to_do[$table_name]['SLEEP']['MIN'], $what_to_do[$table_name]['SLEEP']['MAX']));
+	
+	if ($what_to_do[$table_name]['CRUD']['INSERT'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
+		$todo = 'INSERT';
+	elseif ($what_to_do[$table_name]['CRUD']['SELECT'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
+		$todo = 'SELECT';
+	elseif ($what_to_do[$table_name]['CRUD']['UPDATE'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
+		$todo = 'UPDATE';
+	elseif ($what_to_do[$table_name]['CRUD']['DELETE'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
+		$todo = 'DELETE';
+	elseif ($what_to_do[$table_name]['CRUD']['REPLACE'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
+		$todo = 'REPLACE';			
+	else { //let's randomly pick something to do. crud
+		$weights 	= array_values($what_to_do[$table_name]['CRUD']);
+		$strings 	= array_keys($what_to_do[$table_name]['CRUD']);
+		$index 		= grabWeightedIndex($weights);
+		$todo 		= $strings[$index];
+	}
+	if ($what_to_do[$table_name]['SLEEP']['MAX'] > 0)
+		usleep(rand($what_to_do[$table_name]['SLEEP']['MIN'], $what_to_do[$table_name]['SLEEP']['MAX']));
 
 	if ($todo == 'INSERT' || $todo == 'REPLACE') {  // create
 
 		$raw_data_array = array();
 		foreach ($meta_data[$table_name] as $key => $value ) {
 			$type = $value['datatype'];
-			if (isset($fixed_data[$table_name.".".$value['col_name']]) && $fixed_data[$table_name.".".$value['col_name']][rand(0,max(array_keys($fixed_data[$table_name.".".$value['col_name']])))] != "*") {
-				$d = $fixed_data[$table_name.".".$value['col_name']][rand(0,max(array_keys($fixed_data[$table_name.".".$value['col_name']])))];
-				while ($d == "*")
-					$d = $fixed_data[$table_name.".".$value['col_name']][rand(0,max(array_keys($fixed_data[$table_name.".".$value['col_name']])))];
+			// if the table.column has some potential fixed data, use it ,unless you randomly picked a wildcard (*), then give it some random data
+			if (isset($fixed_data[$table_name.".".$value['col_name']]) && "*" != $d = $fixed_data[$table_name.".".$value['col_name']][rand(0,max(array_keys($fixed_data[$table_name.".".$value['col_name']])))])
 				$raw_data_array[] = $d;
-			} else {
-
-				if ($value['method'] == "autoinc") {
+			else 
+				if ($value['method'] == "autoinc")
 					$raw_data_array[] = $i + ($total_rows * $seed);
-				} elseif ($value['method'] == "ignore") {
+				elseif ($value['method'] == "ignore")
 					continue;
-				} else {
-
-					if (in_array(strtolower($type), $int_types)) {
-						if (strtolower($type) == 'bit')
-							$raw_data_array[] = "b'".decbin(rand($value['min'],$value['max']))."'";
-						else
-							$raw_data_array[] = rand($value['min'],$value['max']);
-					} elseif (in_array(strtolower($type), $float_types)) {
-						//$raw_data_array[] = rand() / getrandmax() + rand($value['min'],$value['max']);
-						$raw_data_array[] = generateRandomFloat($value['min'],$value['max'],5);
-					} elseif (in_array(strtolower($type), $date_types)) {
-						if (strtolower($type) == 'date')
-							$date_format = 'Y-m-d';
-						elseif (strtolower($type) == 'datetime') 
-							$date_format = 'Y-m-d H:i:s';
-						elseif (strtolower($type) == 'timestamp') 
-							$date_format = 'Y-m-d H:i:s';
-						elseif (strtolower($type) == 'time') 
-							$date_format = 'H:i:s';
-						elseif (strtolower($type) == 'year') 
-							$date_format = 'Y';
-						$raw_data_array[] = date( $date_format, rand(strtotime($value['min']),strtotime($value['max'])) );
-					} elseif (in_array(strtolower($type), $text_types)) {
-						if (strtolower($type) == 'binary')
-							$raw_data_array[] = "x'".md5(generateRandomString(rand($value['min'],$value['max'])))."'";
-						else 
-							$raw_data_array[] = generateRandomString(rand($value['min'],$value['max']));
-					} else {
-						echo "Invalid type '$type'.  exiting...";
-						exit();
-					}
-
-				}
-			}
+				else
+					$raw_data_array[] = generateRandomValue($table_name,$value['col_name'],$config);
 		}
 
 		if ($mode == 'insert') {
@@ -276,10 +252,7 @@ while ($i <= $total_rows) {
 				$insert_result = mysql_query($todo . ' ' . $insert_sql,$db_link);
 				
 				if (!$insert_result) {
-					//echo "${stderr_cursor_pos}<Error on Insert:".mysql_error()."\n";	
 					fwrite($STDERR, $stderr_cursor_pos."Error on Insert to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($insert_sql,0,50).'...' . "\n");
-					//echo "sql:" . $todo . ' ' . $insert_sql . "\n";
-					//exit();
 				} else {
 					if ($write_successful_sql_to_disk)
 						logToReplayLog($todo . ' ' . $insert_sql,$tmpfname_replay);
@@ -303,30 +276,43 @@ while ($i <= $total_rows) {
 		findForeignKeyRelationships($table_name,$config,$the_joins);
 		$the_joins = array_slice($the_joins,0,rand(1,count($the_joins)));
 
+		$colums_to_select = array();
+		$infinity_check = 0;
+		while (count($colums_to_select) == 0) { 
+			foreach ($meta_data[$table_name] as $value) {
+				if ($value['method'] != "ignore" && rand(0,3) == 0) {
+					if ($value['datatype'] == 'binary')
+						$colums_to_select[] = "HEX(".$table_name.".".$value['col_name'].")";
+					else 
+						$colums_to_select[] = $table_name.".".$value['col_name'];
+				}
+			}
+			$infinity_check++;
+			if ($infinity_check > 50) {
+				echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
+				exit();
+			}
+
+		}
+
 		if (rand(0,1) == 0)
-			$sql = "SELECT * FROM $table_name " . makeRandomWhereClause($index_info,$table_name,$db_link,$config);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " . makeRandomWhereClause($index_info,$table_name,$db_link,$config);
 		elseif (rand(0,1) == 0)
-			$sql = "SELECT * FROM $table_name " .implode(' ', $the_joins) . makeRandomWhereClause($index_info,$table_name,$db_link,$config);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins) . makeRandomWhereClause($index_info,$table_name,$db_link,$config);
 		else 
-			$sql = "SELECT * FROM $table_name " .implode(' ', $the_joins);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins);
 
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($sql, $db_link);
 		if (!$result) {
-			//echo "Error on Select:$sql \n".mysql_error()."\n";
 			fwrite($STDERR, $stderr_cursor_pos."Error on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
-			//exit();
 		} else {
-			//if (mysql_num_rows($result) > 0)
-				//echo $sql . "\nSelected " . mysql_num_rows($result) . " rows\n";
-			//echo "Rows Selected: " .mysql_num_rows($result). " SQL=$sql\n";
 			if ($write_successful_sql_to_disk)
-				logToReplayLog($sql,$tmpfname_replay);
+				logToReplayLog($sql.";\n",$tmpfname_replay);
 			$reads++;
 		}
 	} elseif ($todo == 'UPDATE') {  //update
-		// update a random field for some of the rows
-
+		// update some random fields for some of the rows
 		//find foreign key relationships, if we have some, randomly select some or none and fold it into the where clause.
 		$the_joins = array();
 		findForeignKeyRelationships($table_name,$config,$the_joins);
@@ -334,8 +320,6 @@ while ($i <= $total_rows) {
 
 		$colums_to_update = array();
 		$infinity_check = 0;
-		//print_r($meta_data);
-		//exit();
 		while (count($colums_to_update) == 0) { 
 			foreach ($meta_data[$table_name] as $value) {
 				if ($value['method'] != "ignore" && rand(0,3) == 0)
@@ -350,40 +334,8 @@ while ($i <= $total_rows) {
 		}
 
 		$raw_data_array=array();
-
-		foreach ($colums_to_update as $key => $value) {
-			$type = $value['datatype'];
-			if (in_array(strtolower($type), $int_types)) {
-				if (strtolower($type) == 'bit')
-					$raw_data_array[] = "b'".decbin(rand($value['min'],$value['max']))."'";
-				else
-					$raw_data_array[] = rand($value['min'],$value['max']);
-			} elseif (in_array(strtolower($type), $float_types)) {
-				//$raw_data_array[] = rand() / getrandmax() + rand($value['min'],$value['max']);
-				$raw_data_array[] = generateRandomFloat($value['min'],$value['max'],5);
-			} elseif (in_array(strtolower($type), $date_types)) {
-				if (strtolower($type) == 'date')
-					$date_format = 'Y-m-d';
-				elseif (strtolower($type) == 'datetime') 
-					$date_format = 'Y-m-d H:i:s';
-				elseif (strtolower($type) == 'timestamp') 
-					$date_format = 'Y-m-d H:i:s';
-				elseif (strtolower($type) == 'time') 
-					$date_format = 'H:i:s';
-				elseif (strtolower($type) == 'year') 
-					$date_format = 'Y';
-				$raw_data_array[] = date( $date_format, rand(strtotime($value['min']),strtotime($value['max'])) );
-			} elseif (in_array(strtolower($type), $text_types)) {
-				if (strtolower($type) == 'binary')
-					$raw_data_array[] = "x'".md5(generateRandomString(rand($value['min'],$value['max'])))."'";
-				else 
-					$raw_data_array[] = generateRandomString(rand($value['min'],$value['max']));
-			} else {
-				echo "Invalid type '$type'.  exiting...";
-				exit();
-			}
-
-		}
+		foreach ($colums_to_update as $key => $value)
+			$raw_data_array[] = generateRandomValue($table_name,$value['col_name'],$config);
 
 		//$update_sql = "UPDATE $table_name " . implode(' ', $the_joins) . " SET ";
 		$update_sql = "UPDATE $table_name SET ";
@@ -402,12 +354,8 @@ while ($i <= $total_rows) {
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($update_sql, $db_link);
 		if (!$result) {
-			//echo "Error on UPDATE:".mysql_error(). "SQL=$update_sql\n";
 			fwrite($STDERR, $stderr_cursor_pos."Error on UPDATE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($update_sql,0,75).'...' . "\n");
-			//exit();
 		} else {
-			//printf("Records updated: %d\n", mysql_affected_rows($db_link));
-			//echo mysql_info() . " SQL=$update_sql\n";
 			if ($write_successful_sql_to_disk) 
 				logToReplayLog($update_sql . ";\n",$tmpfname_replay);
 			$updates++;
@@ -415,23 +363,16 @@ while ($i <= $total_rows) {
 
 	} elseif ($todo == 'DELETE') {  //delete
 		$del_sql = "DELETE FROM $table_name" . makeRandomWhereClause($index_info,$table_name,$db_link,$config);
-
 		if (strpos($del_sql,'WHERE') !== false) {
-
 			mysql_selectdb($mysql_db,$db_link);
 			$result = mysql_query($del_sql, $db_link);
 			if (!$result) {
-				//echo "Error on DELETE:".mysql_error(). "SQL=$del_sql\n";
 				fwrite($STDERR, $stderr_cursor_pos."Error on DELETE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($del_sql,0,75).'...' . "\n");
-				//exit();
 			} else {
-				//printf("Records deleted: %d\n", mysql_affected_rows());
-				//echo "Records deleted:" . mysql_affected_rows() . "  SQL=$del_sql\n";
 				if ($write_successful_sql_to_disk)
 					logToReplayLog($del_sql . ";\n",$tmpfname_replay);
 				$deletes++;
 			}
-
 		}
 		
 	} else {
@@ -444,36 +385,91 @@ while ($i <= $total_rows) {
 	$horizontal_offset = $col * $column_size;
 	$vertical_offset = floor($pos / $cols);
 	$cursor_pos = "\033[${vertical_offset};${horizontal_offset}f";
-	//echo $cursor_pos." ".$table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \r";
+	echo $cursor_pos." ".$table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \r";
 	$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
 	printf($mask, $table_name.'.'.$mysql_db.'.'.$seed, $inserts,$reads,$updates,$deletes);
 
-	//echo "table: $table_name  seed:$seed   inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \n";
 	echo $goto_top;
 }
 
-//echo "inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \n";
+function generateRandomValue($table,$column,$config) 
+{
+	global $int_types,$float_types,$date_types,$text_types,$meta_data;
+
+	foreach ($meta_data[$table] as $value) {
+		if ($value['col_name'] == $column)
+			break;
+	}
+	$type = $value['datatype'];
+	if (in_array(strtolower($type), $int_types)) {
+		if (strtolower($type) == 'bit')
+			return "b'".decbin(rand($value['min'],$value['max']))."'";
+		else
+			return rand($value['min'],$value['max']);
+	} elseif (in_array(strtolower($type), $float_types)) {
+		return generateRandomFloat($value['min'],$value['max'],5);
+	} elseif (in_array(strtolower($type), $date_types)) {
+		if (strtolower($type) == 'date')
+			$date_format = 'Y-m-d';
+		elseif (strtolower($type) == 'datetime') 
+			$date_format = 'Y-m-d H:i:s';
+		elseif (strtolower($type) == 'timestamp') 
+			$date_format = 'Y-m-d H:i:s';
+		elseif (strtolower($type) == 'time') 
+			$date_format = 'H:i:s';
+		elseif (strtolower($type) == 'year') 
+			$date_format = 'Y';
+		return date( $date_format, rand(strtotime($value['min']),strtotime($value['max'])) );
+	} elseif (in_array(strtolower($type), $text_types)) {
+		if (strtolower($type) == 'binary')
+			return "x'".md5(generateRandomString(rand($value['min'],$value['max'])))."'";
+		else 
+			return generateRandomString(rand($value['min'],$value['max']));
+	} else {
+		echo "Invalid type '$type'.";
+		return "";
+	}
+}
 
 function findForeignKeyRelationships($table,$config,&$fk_tables) 
 {
-	include dirname(__FILE__) . "/../configs/$config";
+	global $meta_data;
 	foreach ($meta_data[$table] as $key => $value) {
 		if (isset($value['foreign_keys'])) {
 			foreach ($value['foreign_keys'] as $fks) {
 				$tt = explode('.', $fks);
 				$fk_table 	= $tt[0];
 				$fk_col 	= $tt[1];
-				$fk_tables[] = "INNER JOIN $fk_table ON $fks = $table." . $value['col_name'] ."\n";
+				$fk_tables[] = "INNER JOIN $fk_table ON $fks = $table." . $value['col_name'] ." ";
 				findForeignKeyRelationships($fk_table,$config,&$fk_tables);
 			}
 		}
 	}
 }
 
+function findColumnsToUpdate($tables,$config)
+{
+	global $meta_data;
+	$colums_to_update = array();
+	$infinity_check = 0;
+	while (count($colums_to_update) == 0) { 
+		foreach ($meta_data[$table_name] as $value) {
+			// dont pick the column if its marked as ignore
+			if ($value['method'] != "ignore" && rand(0,2))
+				$colums_to_update[] = $value;
+		}
+		$infinity_check++;
+		if ($infinity_check > 100) {
+			echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
+			return $colums_to_update;
+		}
+	}
+	return $colums_to_update;
+}
 
 function makeRandomWhereClause($index_info,$table_name,$db_link, $config)
 {
-		include dirname(__FILE__) . "/../configs/$config";
+		global $meta_data;
 		// lets build a random where clause that uses random indexs from a given table
 		if (sizeof($index_info) == 0) {
 			echo "no index_info...\n";
@@ -516,6 +512,7 @@ function makeRandomWhereClause($index_info,$table_name,$db_link, $config)
 			if (!$result)
 				echo $stderr_cursor_pos."select sql failed in makeRandomWhereClause " .mysql_error()." \n sql:$sql_grab_random_value";
 			$row = mysql_fetch_row($result);
+			
 			$where_clause_array[] = "$table_name.$col = '".mysql_real_escape_string($row[0])."'"; 
 			// have a 1 in 2 chance to cut the where clause off where we are.
 			if (rand(0,1) == 0) {
@@ -543,12 +540,13 @@ function logToReplayLog($sql,$file_name)
 
 function generateRandomString($length=10)
 {
-	$charset='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    $str = '';
-    $count = strlen($charset);
-    while ($length--)
-        $str .= $charset[mt_rand(0, $count-1)];
-    return $str;
+	//$charset='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    //$str = '';
+    //$count = strlen($charset);
+    //while ($length--)
+    //    $str .= $charset[mt_rand(0, $count-1)];
+    //return $str;
+    return str_shuffle(substr(str_repeat(md5(mt_rand()), 2+$length/32), 0, $length));  // faster way. not as random
 }
 
 function generateRandomFloat($minValue,$maxValue,$decimal){
