@@ -99,30 +99,39 @@ else {
 
 $index_info 	= array();
 
+
+$column_size = 85;
+$rows = intval(`tput lines`);
+$window_length = $rows - 11;
+$stderr_start_row = $rows - 10;
+$stderr_cursor_pos = "\033[${stderr_start_row};0f";
+$cols = floor(intval(`tput cols`) / $column_size);
+$number_of_display_slots = $window_length * $cols;
+
 $tmp_cache_file = dirname(__FILE__) ."/tmp.cache";
 $fp = fopen($tmp_cache_file,'c+');
-
 while (!flock($fp, LOCK_EX)) sleep(1);   // wait on the file lock.
-
 $tmp_cache = file_get_contents(dirname(__FILE__) ."/tmp.cache");
 if (!$tmp_cache)
 	$shared_cache = array();
 else
 	$shared_cache = (array)json_decode(trim(utf8_encode($tmp_cache)));
-$shared_cache[] = $table_name.'.'.$mysql_db.'.'.$seed;
 
-file_put_contents(dirname(__FILE__) ."/tmp.cache",json_encode($shared_cache));
+if (!array_key_exists($table_name.'.'.$mysql_db.'.'.$seed, $shared_cache)) {
+	for ($i=0; $i < $number_of_display_slots; $i++) { 
+		if (array_search($i, $shared_cache) === false) {
+			$shared_cache[$table_name.'.'.$mysql_db.'.'.$seed] = $i;
+			break;
+		}
+	}
+	if (!array_key_exists($table_name.'.'.$mysql_db.'.'.$seed, $shared_cache))
+		$shared_cache[$table_name.'.'.$mysql_db.'.'.$seed] = 0;
+}
+file_put_contents($tmp_cache_file,json_encode($shared_cache));
 flock($fp, LOCK_UN);
+fclose($fp);
 
-$column_size = 85;
-$rows = intval(`tput lines`);
-$stderr_start_row = $rows - 20;
-$stderr_cursor_pos = "\033[${stderr_start_row};0f";
-
-$cols = floor(intval(`tput cols`) / $column_size);
-$pos = array_search($table_name.'.'.$mysql_db.'.'.$seed, $shared_cache) + (8 * $cols);
-if (count($shared_cache) == 1)
-	echo "\033[2J"; // clear screen if we're the 1st in here
+$pos = $shared_cache[$table_name.'.'.$mysql_db.'.'.$seed] + (8 * $cols);
 
 //$begin_sql_insert = "INSERT IGNORE INTO `$table_name` (";
 $begin_sql_insert = "INTO `$table_name` (";
@@ -179,7 +188,7 @@ for ($i=0; $i < $cols; $i++) {
 	$hor_pos = $i * $column_size;
 	$cursor_pos = "\033[5;${hor_pos}f";
 	$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
-	printf($mask, 'table.db.seed', 'inserts','selects','updates','deletes');
+	printf($mask, 'table.db.seed (pid)', 'inserts','selects','updates','deletes');
 }
 $cursor_pos = "\033[6;0f";
 echo $cursor_pos . str_repeat('_', $cols * $column_size);
@@ -242,8 +251,8 @@ while ($i <= $total_rows) {
 			if ($i % $rows_per_file == 0 || $total_rows-$i < $rows_per_file) {
 				// lets end the extended insert statement and insert it.
 				if ($todo == 'INSERT' ) {
-					//$insert_sql .= " ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);\n";   // TODO need to make this configurable
-					$insert_sql .= ";\n";
+					$insert_sql .= " ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);\n";   // TODO need to make this configurable
+					//$insert_sql .= ";\n";
 				} else {
 					$insert_sql .= ";\n";
 				}
@@ -252,7 +261,7 @@ while ($i <= $total_rows) {
 				$insert_result = mysql_query($todo . ' ' . $insert_sql,$db_link);
 				
 				if (!$insert_result) {
-					fwrite($STDERR, $stderr_cursor_pos."Error on Insert to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($insert_sql,0,50).'...' . "\n");
+					fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on Insert to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($insert_sql,0,50).'...' . "\n");
 				} else {
 					if ($write_successful_sql_to_disk)
 						logToReplayLog($todo . ' ' . $insert_sql,$tmpfname_replay);
@@ -292,7 +301,6 @@ while ($i <= $total_rows) {
 				echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
 				exit();
 			}
-
 		}
 
 		if (rand(0,1) == 0)
@@ -305,7 +313,7 @@ while ($i <= $total_rows) {
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($sql, $db_link);
 		if (!$result) {
-			fwrite($STDERR, $stderr_cursor_pos."Error on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
+			fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
 		} else {
 			if ($write_successful_sql_to_disk)
 				logToReplayLog($sql.";\n",$tmpfname_replay);
@@ -351,10 +359,11 @@ while ($i <= $total_rows) {
 
 		$update_sql .= makeRandomWhereClause($index_info,$table_name,$db_link,$config);
 
+
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($update_sql, $db_link);
 		if (!$result) {
-			fwrite($STDERR, $stderr_cursor_pos."Error on UPDATE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($update_sql,0,75).'...' . "\n");
+			fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on UPDATE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($update_sql,0,75).'...' . "\n");
 		} else {
 			if ($write_successful_sql_to_disk) 
 				logToReplayLog($update_sql . ";\n",$tmpfname_replay);
@@ -367,7 +376,7 @@ while ($i <= $total_rows) {
 			mysql_selectdb($mysql_db,$db_link);
 			$result = mysql_query($del_sql, $db_link);
 			if (!$result) {
-				fwrite($STDERR, $stderr_cursor_pos."Error on DELETE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($del_sql,0,75).'...' . "\n");
+				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on DELETE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($del_sql,0,75).'...' . "\n");
 			} else {
 				if ($write_successful_sql_to_disk)
 					logToReplayLog($del_sql . ";\n",$tmpfname_replay);
@@ -385,12 +394,32 @@ while ($i <= $total_rows) {
 	$horizontal_offset = $col * $column_size;
 	$vertical_offset = floor($pos / $cols);
 	$cursor_pos = "\033[${vertical_offset};${horizontal_offset}f";
-	echo $cursor_pos." ".$table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \r";
+	//echo $table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \n";
 	$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
-	printf($mask, $table_name.'.'.$mysql_db.'.'.$seed, $inserts,$reads,$updates,$deletes);
-
+	$output = $mysql_db.'.'.$table_name.'.'.$seed."(".getmypid().")";
+	$output = substr($output,0,40);
+	printf($mask,$output,$inserts,$reads,$updates,$deletes);
 	echo $goto_top;
 }
+printf($mask, "                                        ", "       ","       ","       ","       ");
+$fp = fopen($tmp_cache_file,'c+');
+while (!flock($fp, LOCK_EX)) 
+	sleep(rand(1,2));   // wait on the file lock.
+$tmp_cache = file_get_contents(dirname(__FILE__) ."/tmp.cache");
+if (!$tmp_cache)
+	$shared_cache = array();
+else
+	$shared_cache = (array)json_decode(trim(utf8_encode($tmp_cache)));
+foreach ($shared_cache as $key => $value) {
+	if ($key == $table_name.'.'.$mysql_db.'.'.$seed)
+		unset($shared_cache[$key]);
+}
+file_put_contents($tmp_cache_file,json_encode($shared_cache));
+flock($fp, LOCK_UN);
+fclose($fp);
+
+
+
 
 function generateRandomValue($table,$column,$config) 
 {
@@ -510,7 +539,7 @@ function makeRandomWhereClause($index_info,$table_name,$db_link, $config)
 			$result = mysql_query($sql_grab_random_value, $db_link);
 			$stderr_cursor_pos = "\033[55;0f";
 			if (!$result)
-				echo $stderr_cursor_pos."select sql failed in makeRandomWhereClause " .mysql_error()." \n sql:$sql_grab_random_value";
+				echo $stderr_cursor_pos."select sql failed in makeRandomWhereClause error code:".mysql_errno()." - ".mysql_error()." \n sql:$sql_grab_random_value\n";
 			$row = mysql_fetch_row($result);
 			
 			$where_clause_array[] = "$table_name.$col = '".mysql_real_escape_string($row[0])."'"; 
