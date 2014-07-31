@@ -26,12 +26,12 @@ if [ "$NUM_ROWS" -gt $CHUNK_SIZE ] ; then
 		j=$(( i-1 ))
 		#echo "j is $j"
 	    while [ "$(jobs -pr | wc -l)" -ge "$MAX_THREADS" ] ; do sleep 2; done
-	    $SCRIPTPATH/bin/gen_data.php --config=$CONFIG -u $MYSQL_USER -p $MYSQL_PASS -h=$MYSQL_HOST --database=$SCHEMA --extended_insert_size=$TRANSACTION_SIZE --seed=$i --write_sql_to_disk $TABLE $CHUNK_SIZE $MODE &
+	    $SCRIPTPATH/bin/gen_data.php --config=$CONFIG -u $MYSQL_USER -p $MYSQL_PASS -h=$MYSQL_HOST --database=$SCHEMA --extended_insert_size=$TRANSACTION_SIZE --seed=$i $TABLE $CHUNK_SIZE $MODE &
 	    #echo "$!" >> "$SCRIPTPATH/pid_map/$RUNTHIS_PID_DIR/$$.pids"
 	done
 else
 	while [ "$(jobs -pr | wc -l)" -ge "$MAX_THREADS" ] ; do sleep 2; done
-	$SCRIPTPATH/bin/gen_data.php --config=$CONFIG -u $MYSQL_USER -p $MYSQL_PASS -h=$MYSQL_HOST --database=$SCHEMA --extended_insert_size=$TRANSACTION_SIZE --seed=0 --write_sql_to_disk $TABLE $NUM_ROWS $MODE &
+	$SCRIPTPATH/bin/gen_data.php --config=$CONFIG -u $MYSQL_USER -p $MYSQL_PASS -h=$MYSQL_HOST --database=$SCHEMA --extended_insert_size=$TRANSACTION_SIZE --seed=0 $TABLE $NUM_ROWS $MODE &
 	#echo "$!" >> "$SCRIPTPATH/pid_map/$RUNTHIS_PID_DIR/$$.pids"
 fi
 

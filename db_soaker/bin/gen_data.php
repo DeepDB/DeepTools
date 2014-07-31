@@ -276,8 +276,8 @@ while ($i <= $total_rows) {
 			if ($i % $rows_per_file == 0 || $total_rows-$i < $rows_per_file) {
 				// lets end the extended insert statement and insert it.
 				if ($todo == 'INSERT' ) {
-					$insert_sql[$table_name] .= " ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);\n";   // TODO need to make this configurable
-					//$insert_sql[$table_name] .= ";\n";
+					//$insert_sql[$table_name] .= " ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id);\n";   // TODO need to make this configurable
+					$insert_sql[$table_name] .= ";\n";
 				} else {
 					$insert_sql[$table_name] .= ";\n";
 				}

@@ -9,9 +9,9 @@ MYSQL_PASS=$2
 MYSQL_HOST=$3
 
 CONFIG="example_database_1_load_config.php"
-TRANSACTION_SIZE=100
-NUM_ROWS=100000
-NUM_CLIENTS=10
+TRANSACTION_SIZE=500
+NUM_ROWS=100000000
+NUM_CLIENTS=32
 
 echo "Checking MySQL connection..."
 mysql -u"$MYSQL_USER" -p$MYSQL_PASS -h"$MYSQL_HOST" -e exit 2>/dev/null
@@ -20,7 +20,7 @@ if [ $? -ne 0 ]; then
 	exit;
 fi
 
-DATABASES="example_database_1 example_database_2"
+DATABASES="example_database_1"
 
 for db in $DATABASES ; do 
 	mysql -u"$MYSQL_USER" -p$MYSQL_PASS -h"$MYSQL_HOST" -e "DROP DATABASE $db;"
@@ -30,7 +30,7 @@ done
 
 for DATABASE in ${DATABASES}; do
 	for table in $(mysql -u"$MYSQL_USER" -p$MYSQL_PASS -h"$MYSQL_HOST" -BNe "show tables" $DATABASE ) ; do
-		$SCRIPTPATH/generate_random_data.sh $MYSQL_USER $MYSQL_PASS $MYSQL_HOST $DATABASE $table $NUM_ROWS $TRANSACTION_SIZE $NUM_CLIENTS $CONFIG&
+		$SCRIPTPATH/generate_random_data.sh $MYSQL_USER $MYSQL_PASS $MYSQL_HOST $DATABASE $table $NUM_ROWS $TRANSACTION_SIZE $NUM_CLIENTS $CONFIG
 	done
 done
 
