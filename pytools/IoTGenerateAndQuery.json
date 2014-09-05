@@ -1,0 +1,18 @@
+[
+	{
+		"functionName":"IoTMessageGenerator.generateRecords",
+		"frequency":1
+	},
+	{
+		"functionName":"IoTMessageGenerator.getLastRecords",
+		"frequency":1
+	},
+	{
+		"functionName":"IoTMessageGenerator.getLastRecordsBySource",
+		"frequency":1 
+	},
+	{
+		"functionName":"IoTMessageGenerator.getRandomRecordsByRecordID",
+		"frequency":1 
+	}
+]
