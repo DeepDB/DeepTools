@@ -3,7 +3,7 @@
 $meta_data = array(
 'table1' => array(
 				array('col_name' => 'id',          'datatype' => 'int',       'method' => 'ignore',	'min' => 0,	'max' => 4294967295),
-				array('col_name' => 'column1',     'datatype' => 'int',       'method' => 'random',	'min' => 0,	'max' => 4294967295),
+				array('col_name' => 'column1',     'datatype' => 'int',       'method' => 'autoinc',	'min' => 0,	'max' => 4294967295),
 				array('col_name' => 'column2',     'datatype' => 'varchar',   'method' => 'random',	'min' => 0,	'max' => 40),
 				array('col_name' => 'column3',     'datatype' => 'date',      'method' => 'random',	'min' => 0,	'max' => 1000000),
 				array('col_name' => 'column4',     'datatype' => 'datetime',  'method' => 'random',	'min' => 0,	'max' => 1000000),
