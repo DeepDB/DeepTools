@@ -5,10 +5,10 @@ $meta_data = array(
 				array('col_name' => 'id',          'datatype' => 'int',       'method' => 'ignore',	'min' => 0,	'max' => 4294967295),
 				array('col_name' => 'column1',     'datatype' => 'int',       'method' => 'autoinc',	'min' => 0,	'max' => 4294967295),
 				array('col_name' => 'column2',     'datatype' => 'varchar',   'method' => 'random',	'min' => 0,	'max' => 40),
-				array('col_name' => 'column3',     'datatype' => 'date',      'method' => 'random',	'min' => 0,	'max' => 1000000),
-				array('col_name' => 'column4',     'datatype' => 'datetime',  'method' => 'random',	'min' => 0,	'max' => 1000000),
-				array('col_name' => 'column5',     'datatype' => 'timestamp', 'method' => 'random',	'min' => 0,	'max' => 1000000),
-				array('col_name' => 'column6',     'datatype' => 'timestamp', 'method' => 'random',	'min' => 0,	'max' => 1000000),
+				array('col_name' => 'column3',     'datatype' => 'date',      'method' => 'random',	'min' => '2005-11-12',	'max' => '2014-09-08'),
+				array('col_name' => 'column4',     'datatype' => 'datetime',  'method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44'),
+				array('col_name' => 'column5',     'datatype' => 'timestamp', 'method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44'),
+				array('col_name' => 'column6',     'datatype' => 'timestamp', 'method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44'),
 				array('col_name' => 'column7',     'datatype' => 'char',      'method' => 'random',	'min' => 0,	'max' => 6),
 				array('col_name' => 'column8',     'datatype' => 'tinytext',  'method' => 'random',	'min' => 0,	'max' => 255),
 				array('col_name' => 'column9',     'datatype' => 'binary',    'method' => 'random',	'min' => 0,	'max' => 16),
@@ -17,7 +17,7 @@ $meta_data = array(
 'table2' => array(
 				array('col_name' => 'id',         'datatype' => 'int',      'method' => 'ignore',	'min' => 0,	'max' => 4294967295),
 				array('col_name' => 'column1',    'datatype' => 'varchar',  'method' => 'autoinc',	'min' => 0,	'max' => 100),
-				array('col_name' => 'column2',    'datatype' => 'timestamp','method' => 'random',	'min' => 0,	'max' => 1000000)),
+				array('col_name' => 'column2',    'datatype' => 'timestamp','method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44')),
 'table3' => array(
 				array('col_name' => 'column1',    'datatype' => 'binary',   'method' => 'random',	'min' => 0,	'max' => 16),
 				array('col_name' => 'column2',    'datatype' => 'varchar',  'method' => 'random',	'min' => 0,	'max' => 20),
@@ -32,7 +32,7 @@ $meta_data = array(
 'table5' => array(
 				array('col_name' => 'id',         'datatype' => 'bigint',   'method' => 'autoinc',	'min' => 0,	'max' => 18446744073709551616),
 				array('col_name' => 'column1',    'datatype' => 'int',      'method' => 'random',	'min' => -2147483648,	'max' => 2147483647),
-				array('col_name' => 'column2',    'datatype' => 'datetime', 'method' => 'random',	'min' => 0,	'max' => 1000000),
+				array('col_name' => 'column2',    'datatype' => 'datetime', 'method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44'),
 				array('col_name' => 'column3',    'datatype' => 'float',    'method' => 'random',	'min' => 0,	'max' => 1000000),
 				array('col_name' => 'column4',    'datatype' => 'varchar',  'method' => 'random',	'min' => 0,	'max' => 20))
 );
