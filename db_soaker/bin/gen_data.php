@@ -5,17 +5,19 @@ $STDERR = fopen('php://stderr', 'w+');
 
 $shortopts  = "u:p:h:";  // mysql username, pass and host
 $longopts  = array(
-    "config:",     				// php config file used.
-    "extended_insert_size:",	// transaction size for extended inserts
-    "min_transaction_size:",	// min size of a transaction
-    "max_transaction_size:",	// max size of a transaction
-    "rollback_chance:",			// one out of x chance to rollback a transaction instead of commiting it.
+    "config:",     					// php config file used.
+    "extended_insert_size:",		// transaction size for extended inserts
+    "min_transaction_size:",		// min size of a transaction
+    "max_transaction_size:",		// max size of a transaction
+    "rollback_chance:",				// one out of x chance to rollback a transaction instead of commiting it.
     "select_lock_in_share_mode_chance:", // one out of x chance to add a LOCK IN SHARE MODE to a select statement.
-    "output_dir:",         		// dir_to_put_files
-    "table:",					// table to operate on
-    "database:",				// database to use
-    "seed:",					// database to use    
-    "write_sql_to_disk" 		// write successful run sql statments to disk.
+    "output_dir:",         			// dir_to_put_files
+    "table:",						// table to operate on
+    "database:",					// database to use
+    "seed:",						// database to use
+    "display:",						// display output options
+    "write_sql_to_disk", 			// write successful run sql statments to disk.
+    "write_sql_to_disk_location:" 	// location to write successful run sql statments to disk. default is sql_out dir
 );
 $options = getopt($shortopts, $longopts);
 shift_argv($options);
@@ -100,11 +102,22 @@ if (isset($options['seed']))
 else
 	$seed = 0;
 
+if (isset($options['display']))
+	$display = $options['display'];
+else
+	$display = "pretty";
+
+if (isset($options['write_sql_to_disk_location'])) {
+	$write_sql_to_disk_location = $options['write_sql_to_disk_location'];
+} else {
+	$write_sql_to_disk_location = dirname(__FILE__).'/../sql_out';
+}
+
 if (isset($options['write_sql_to_disk'])) {
 	$write_successful_sql_to_disk = true;
-	if (!file_exists(dirname(__FILE__).'/../sql_out'))
-		mkdir(dirname(__FILE__).'/../sql_out', 0755, true);
-	$tmpfname_replay = tempnam(dirname(__FILE__)."/../sql_out", "$mysql_db.");
+	if (!file_exists($write_sql_to_disk_location))
+		mkdir($write_sql_to_disk_location, 0755, true);
+	$tmpfname_replay = tempnam($write_sql_to_disk_location, "$mysql_db.");
 } else {
 	$write_successful_sql_to_disk = false;
 }
@@ -114,9 +127,11 @@ $float_types    		= array('float','double','decimal');
 $date_types             = array('date','datetime','timestamp','time','year');
 $text_types             = array('char','varchar','tinytext','text','blob','mediumtext','mediumblob','longtext','longblob','tinyblob','enum','set','binary');
 
-if (is_readable(dirname(__FILE__) . "/../configs/$config"))
+if (is_readable(dirname(__FILE__) . "/../configs/$config")) {
 	include dirname(__FILE__) . "/../configs/$config";
-else {
+} elseif (is_readable("$config")) {
+	include "$config";
+} else {
 	echo "config file $config does not exist or is not readable.\n";
 	exit(1);
 }
@@ -125,7 +140,10 @@ $column_size = 85;
 $rows = intval(`tput lines`);
 $window_length = $rows - 11;
 $stderr_start_row = $rows - 10;
-$stderr_cursor_pos = "\033[${stderr_start_row};0f";
+if ($display == "pretty")
+	$stderr_cursor_pos = "\033[${stderr_start_row};0f";
+else 
+	$stderr_cursor_pos = "";
 $cols = floor(intval(`tput cols`) / $column_size);
 $number_of_display_slots = $window_length * $cols;
 
@@ -179,7 +197,7 @@ if ($mode == 'insert') {
 	$handle 	= fopen($tmpfname, "w");
 } else {
 	echo "Unknown mode. exiting...";
-	exit();
+	exit(1);
 }
 
 $i 			= 1;	
@@ -188,16 +206,17 @@ $updates 	= 0;
 $inserts 	= 0;
 $reads   	= 0;
 
-// print the column headers
-for ($i=0; $i < $cols; $i++) {
-	$hor_pos = $i * $column_size;
-	$cursor_pos = "\033[5;${hor_pos}f";
-	$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
-	printf($mask, 'table.db.seed (pid)', 'inserts','selects','updates','deletes');
+if ($display == "pretty") {
+	// print the column headers
+	for ($i=0; $i < $cols; $i++) {
+		$hor_pos = $i * $column_size;
+		$cursor_pos = "\033[5;${hor_pos}f";
+		$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
+		printf($mask, 'table.db.seed (pid)', 'inserts','selects','updates','deletes');
+	}
+	$cursor_pos = "\033[6;0f";
+	echo $cursor_pos . str_repeat('_', $cols * $column_size);
 }
-$cursor_pos = "\033[6;0f";
-echo $cursor_pos . str_repeat('_', $cols * $column_size);
-
 
 if ($min_transaction_size == 1 && $max_transaction_size == 1) {
 	$transaction_size = 1;
@@ -216,9 +235,10 @@ while ($i <= $total_rows) {
 	else 
  		$table_name = $table_arg;
 
- 	get_shared_cache_info($shared_cache,$mysql_db,$table_name,$seed);
-	$pos = $shared_cache[$table_name.'.'.$mysql_db.'.'.$seed] + (8 * $cols);
-
+	if ($display == "pretty") {
+ 		get_shared_cache_info($shared_cache,$mysql_db,$table_name,$seed);
+		$pos = $shared_cache[$table_name.'.'.$mysql_db.'.'.$seed] + (8 * $cols);
+	}
 
 	if ($what_to_do[$table_name]['CRUD']['INSERT'] == array_sum($what_to_do[$table_name]['CRUD']) ) 
 		$todo = 'INSERT';
@@ -286,7 +306,8 @@ while ($i <= $total_rows) {
 				$insert_result = mysql_query($todo . ' ' . $insert_sql[$table_name],$db_link);
 				
 				if (!$insert_result) {
-					fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on Insert to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($insert_sql[$table_name],0,50).'...' . "\n");
+					if ($display == "pretty" || $display == "errors_only")
+						fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on Insert to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($insert_sql[$table_name],0,50).'...' . "\n");
 				} else {
 					if ($write_successful_sql_to_disk)
 						logToReplayLog($todo . ' ' . $insert_sql[$table_name],$tmpfname_replay);
@@ -326,7 +347,7 @@ while ($i <= $total_rows) {
 			$infinity_check++;
 			if ($infinity_check > 50) {
 				echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
-				exit();
+				exit(1);
 			}
 		}
 
@@ -343,7 +364,8 @@ while ($i <= $total_rows) {
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($sql, $db_link);
 		if (!$result) {
-			fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
+			if ($display == "pretty" || $display == "errors_only")
+				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
 		} else {
 			if ($write_successful_sql_to_disk)
 				logToReplayLog($sql.";\n",$tmpfname_replay);
@@ -366,18 +388,23 @@ while ($i <= $total_rows) {
 			$infinity_check++;
 			if ($infinity_check > 50) {
 				echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
-				exit();
+				exit(1);
 			}
 
 		}
 
 		// check for gap lock potential
 		// if primary key is in the colums_to_update lets remove it for now
-		foreach ($colums_to_update as $key => $value) {
-			if ($value['col_name'] == 'id')
-				unset($colums_to_update[$key]);
-		}
+		// TODO . clean this up to work in any case.
+		//foreach ($colums_to_update as $key => $value) {
+		//	if ($value['col_name'] == 'id')
+		//		unset($colums_to_update[$key]);
+		//}
 		shuffle($colums_to_update);
+		if (count($colums_to_update) == 0) {
+			$i++;
+			continue;
+		}
 
 		$raw_data_array=array();
 		foreach ($colums_to_update as $key => $value)
@@ -403,7 +430,8 @@ while ($i <= $total_rows) {
 		mysql_selectdb($mysql_db,$db_link);
 		$result = mysql_query($update_sql, $db_link);
 		if (!$result) {
-			fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on UPDATE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($update_sql,0,75).'...' . "\n");
+			if ($display == "pretty" || $display == "errors_only")
+				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on UPDATE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . ' ' .$update_sql . "\n");
 		} else {
 			if ($write_successful_sql_to_disk) 
 				logToReplayLog($update_sql . ";\n",$tmpfname_replay);
@@ -411,19 +439,21 @@ while ($i <= $total_rows) {
 		}
 
 	} elseif ($todo == 'DELETE') {  //delete
+
 		$del_sql = "DELETE FROM $table_name" . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,$config);
 		if (strpos($del_sql,'WHERE') !== false) {
 			mysql_selectdb($mysql_db,$db_link);
 			$result = mysql_query($del_sql, $db_link);
 			if (!$result) {
-				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on DELETE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($del_sql,0,75).'...' . "\n");
+				if ($display == "pretty" || $display == "errors_only")
+					fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on DELETE to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . substr($del_sql,0,175).'...' . "\n");
 			} else {
 				if ($write_successful_sql_to_disk)
 					logToReplayLog($del_sql . ";\n",$tmpfname_replay);
 				$deletes++;
 			}
 		}
-		
+
 	} else {
 		// do nothing
 		echo "nothing to do...\n";
@@ -450,39 +480,44 @@ while ($i <= $total_rows) {
 	$i++;
 	$transaction_count++;
 
-	$goto_top = "\033[0;0f";
-	$col = $pos % $cols;
-	$horizontal_offset = $col * $column_size;
-	$vertical_offset = floor($pos / $cols);
-	$cursor_pos = "\033[${vertical_offset};${horizontal_offset}f";
-	//echo $table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \n";
-	$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
-	$output = $mysql_db.'.'.$table_name.'.'.$seed."(".getmypid().")";
-	$output = substr($output,0,40);
-	printf($mask,$output,$inserts,$reads,$updates,$deletes);
-	echo $goto_top;
+	if ($display == "pretty") {
+		$goto_top = "\033[0;0f";
+		$col = $pos % $cols;
+		$horizontal_offset = $col * $column_size;
+		$vertical_offset = floor($pos / $cols);
+		$cursor_pos = "\033[${vertical_offset};${horizontal_offset}f";
+		//echo $table_name.'.'.$mysql_db.'.'.$seed."  inserts: $inserts reads:$reads  updates: $updates  deletes: $deletes \n";
+		$mask = "${cursor_pos}|%-40s |%7s |%7s |%7s |%7s|\r";
+		$output = $mysql_db.'.'.$table_name.'.'.$seed."(".getmypid().")";
+		$output = substr($output,0,40);
+		printf($mask,$output,$inserts,$reads,$updates,$deletes);
+		echo $goto_top;
+	} 
 }
 
 mysql_query("COMMIT;", $db_link);
 if ($write_successful_sql_to_disk)
 	logToReplayLog("COMMIT;\n",$tmpfname_replay);
 
-printf($mask, "                                        ", "       ","       ","       ","       ");
-$fp = fopen(dirname(__FILE__) ."/tmp.cache",'c+');
-while (!flock($fp, LOCK_EX)) 
-	sleep(rand(1,2));   // wait on the file lock.
-$tmp_cache = file_get_contents(dirname(__FILE__) ."/tmp.cache");
-if (!$tmp_cache)
-	$shared_cache = array();
-else
-	$shared_cache = (array)json_decode(trim(utf8_encode($tmp_cache)));
-foreach ($shared_cache as $key => $value) {
-	if ($key == $table_name.'.'.$mysql_db.'.'.$seed)
-		unset($shared_cache[$key]);
+
+if ($display == "pretty") {
+	printf($mask, "                                        ", "       ","       ","       ","       ");
+	$fp = fopen(dirname(__FILE__) ."/tmp.cache",'c+');
+	while (!flock($fp, LOCK_EX)) 
+		sleep(rand(1,2));   // wait on the file lock.
+	$tmp_cache = file_get_contents(dirname(__FILE__) ."/tmp.cache");
+	if (!$tmp_cache)
+		$shared_cache = array();
+	else
+		$shared_cache = (array)json_decode(trim(utf8_encode($tmp_cache)));
+	foreach ($shared_cache as $key => $value) {
+		if ($key == $table_name.'.'.$mysql_db.'.'.$seed)
+			unset($shared_cache[$key]);
+	}
+	file_put_contents(dirname(__FILE__) ."/tmp.cache",json_encode($shared_cache));
+	flock($fp, LOCK_UN);
+	fclose($fp);
 }
-file_put_contents(dirname(__FILE__) ."/tmp.cache",json_encode($shared_cache));
-flock($fp, LOCK_UN);
-fclose($fp);
 
 
 function get_shared_cache_info(&$shared_cache,$mysql_db,$table_name,$seed)
@@ -554,7 +589,7 @@ function generateRandomValue($table,$column,$config)
 		else 
 			return generateRandomString(rand($value['min'],$value['max']));
 	} else {
-		echo "Invalid type '$type'.";
+		//echo "Invalid type '$type'.";
 		return "";
 	}
 }
@@ -588,7 +623,7 @@ function findColumnsToUpdate($tables,$config)
 		}
 		$infinity_check++;
 		if ($infinity_check > 100) {
-			echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
+			//echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
 			return $colums_to_update;
 		}
 	}
@@ -600,7 +635,7 @@ function makeRandomWhereClause($index_info,$table_name,$db_link, $config, $retur
 		global $meta_data;
 		// lets build a random where clause that uses random indexs from a given table
 		if (sizeof($index_info) == 0) {
-			echo "no index_info...\n";
+			//echo "no index_info...\n";
 			return " ";
 		}
 		$index 	= array_rand($index_info);
@@ -722,7 +757,11 @@ function usage() {
     echo " ${bold}--output_dir${end}=${un}OUTPUT_DIR${end}\n";
     echo "            directory that tab delimited files are generated. Used for tab_del_dump action only. default is /tmp\n"; 
     echo " ${bold}--write_sql_to_disk${end}\n";
-    echo "            write all successful sql queries to files in ./sql_out . Used for insert only action.\n"; 
+    echo "            write all successful sql queries to files. Used for insert only action.\n"; 
+    echo " ${bold}--write_sql_to_disk_location${end}\n";
+    echo "            dir location to write successful sql statments to disk. default is sql_out dir. Used for insert only action.\n";
+    echo " ${bold}--display${end}=${un}DISPLAY_OPTION${end}\n";
+    echo "            screen output display. none, errors_only, or pretty.  default is pretty.\n";
     exit(0);
 }
 
