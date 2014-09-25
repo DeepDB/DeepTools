@@ -273,7 +273,7 @@ while ($i <= $total_rows) {
 				elseif ($value['method'] == "ignore")
 					continue;
 				else
-					$raw_data_array[] = generateRandomValue($table_name,$value['col_name'],$config);
+					$raw_data_array[] = generateRandomValue($table_name,$value['col_name']);
 		}
 
 		if ($mode == 'insert') {
@@ -330,7 +330,7 @@ while ($i <= $total_rows) {
 
 		//find foreign key relationships, if we have some, randomly select some or none and fold it into the where clause.
 		$the_joins = array();
-		findForeignKeyRelationships($table_name,$config,$the_joins);
+		findForeignKeyRelationships($table_name,$the_joins);
 		$the_joins = array_slice($the_joins,0,rand(1,count($the_joins)));
 
 		$colums_to_select = array();
@@ -352,11 +352,13 @@ while ($i <= $total_rows) {
 		}
 
 		if (rand(0,1) == 0)
-			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,$config);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link);
 		elseif (rand(0,1) == 0)
-			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins) . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,$config);
-		else 
-			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins) . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link);
+		else {
+			//$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins);
+			$sql = "SELECT ".implode(',', $colums_to_select)." FROM $table_name " .implode(' ', $the_joins) . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link);
+		}
 
 		if ($select_lock_in_share_mode_chance != 0 && rand(1,$select_lock_in_share_mode_chance) == 1 && $transaction_size > 1)
 			$sql .= " LOCK IN SHARE MODE";
@@ -365,7 +367,7 @@ while ($i <= $total_rows) {
 		$result = mysql_query($sql, $db_link);
 		if (!$result) {
 			if ($display == "pretty" || $display == "errors_only")
-				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:" . $todo . ' ' . substr($sql,0,75).'...' . "\n");
+				fwrite($STDERR, $stderr_cursor_pos."Error(".mysql_errno().") on SELECT to $table_name.$mysql_db:".mysql_error()."\n"."sql:"  . $sql . "\n");
 		} else {
 			if ($write_successful_sql_to_disk)
 				logToReplayLog($sql.";\n",$tmpfname_replay);
@@ -375,31 +377,21 @@ while ($i <= $total_rows) {
 		// update some random fields for some of the rows
 		//find foreign key relationships, if we have some, randomly select some or none and fold it into the where clause.
 		$the_joins = array();
-		findForeignKeyRelationships($table_name,$config,$the_joins);
+		findForeignKeyRelationships($table_name,$the_joins);
 		$the_joins = array_slice($the_joins,0,rand(1,count($the_joins)));
 
-		$colums_to_update = array();
-		$infinity_check = 0;
-		while (count($colums_to_update) == 0) { 
-			foreach ($meta_data[$table_name] as $value) {
-				if ($value['method'] != "ignore" && rand(0,3) == 0)
-					$colums_to_update[] = $value;
-			}
-			$infinity_check++;
-			if ($infinity_check > 50) {
-				echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
-				exit(1);
-			}
-
-		}
+		//$colums_to_update = array();
+		$colums_to_update = findColumnsToUpdate($table_name);
 
 		// check for gap lock potential
 		// if primary key is in the colums_to_update lets remove it for now
 		// TODO . clean this up to work in any case.
-		//foreach ($colums_to_update as $key => $value) {
-		//	if ($value['col_name'] == 'id')
-		//		unset($colums_to_update[$key]);
-		//}
+
+//		foreach ($colums_to_update as $key => $value) {
+//			if ($value['col_name'] == 'id')
+//				unset($colums_to_update[$key]);
+//		}
+
 		shuffle($colums_to_update);
 		if (count($colums_to_update) == 0) {
 			$i++;
@@ -408,9 +400,9 @@ while ($i <= $total_rows) {
 
 		$raw_data_array=array();
 		foreach ($colums_to_update as $key => $value)
-			$raw_data_array[] = generateRandomValue($table_name,$value['col_name'],$config);
+			$raw_data_array[] = generateRandomValue($table_name,$value['col_name']);
 
-		$where_clause_array = makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,$config,true);
+		$where_clause_array = makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,true);
 
 		//$update_sql = "UPDATE $table_name " . implode(' ', $the_joins) . " SET ";
 		$update_sql = "UPDATE $table_name SET ";
@@ -440,7 +432,7 @@ while ($i <= $total_rows) {
 
 	} elseif ($todo == 'DELETE') {  //delete
 
-		$del_sql = "DELETE FROM $table_name" . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link,$config);
+		$del_sql = "DELETE FROM $table_name" . makeRandomWhereClause($index_info[$table_name],$table_name,$db_link);
 		if (strpos($del_sql,'WHERE') !== false) {
 			mysql_selectdb($mysql_db,$db_link);
 			$result = mysql_query($del_sql, $db_link);
@@ -555,7 +547,7 @@ function get_shared_cache_info(&$shared_cache,$mysql_db,$table_name,$seed)
 }
 
 
-function generateRandomValue($table,$column,$config) 
+function generateRandomValue($table,$column) 
 {
 	global $int_types,$float_types,$date_types,$text_types,$meta_data;
 
@@ -594,7 +586,7 @@ function generateRandomValue($table,$column,$config)
 	}
 }
 
-function findForeignKeyRelationships($table,$config,&$fk_tables) 
+function findForeignKeyRelationships($table,&$fk_tables) 
 {
 	global $meta_data;
 	foreach ($meta_data[$table] as $key => $value) {
@@ -604,13 +596,13 @@ function findForeignKeyRelationships($table,$config,&$fk_tables)
 				$fk_table 	= $tt[0];
 				$fk_col 	= $tt[1];
 				$fk_tables[] = "INNER JOIN $fk_table ON $fks = $table." . $value['col_name'] ." ";
-				findForeignKeyRelationships($fk_table,$config,&$fk_tables);
+				findForeignKeyRelationships($fk_table,$fk_tables);
 			}
 		}
 	}
 }
 
-function findColumnsToUpdate($tables,$config)
+function findColumnsToUpdate($table_name)
 {
 	global $meta_data;
 	$colums_to_update = array();
@@ -630,7 +622,7 @@ function findColumnsToUpdate($tables,$config)
 	return $colums_to_update;
 }
 
-function makeRandomWhereClause($index_info,$table_name,$db_link, $config, $return_array = false)
+function makeRandomWhereClause($index_info,$table_name,$db_link, $return_array = false)
 {
 		global $meta_data;
 		// lets build a random where clause that uses random indexs from a given table
@@ -642,18 +634,33 @@ function makeRandomWhereClause($index_info,$table_name,$db_link, $config, $retur
 		$cols 	= $index_info[$index];
 		$where_clause_array = array();
 		foreach ($cols as $key => $col) {
-			$offset_sql = "SELECT COUNT(*) FROM $table_name" . " WHERE " . implode(" AND ", $where_clause_array);
-			$offset_sql = rtrim($offset_sql,'WHERE ');
-			$res = mysql_query($offset_sql);   //if using innodb this will be too slow.
-			$row = mysql_fetch_array($res);
-			$offset = rand(0, $row[0]-1);
+			//$offset_sql = "SELECT COUNT(*) FROM $table_name" . " WHERE " . implode(" AND ", $where_clause_array);
+			//$offset_sql = rtrim($offset_sql,'WHERE ');
+			//$res = mysql_query($offset_sql);   //if using innodb this will be too slow.
+			//$row = mysql_fetch_array($res);
+			//$offset = rand(0, $row[0]-1);
 			$sql_grab_random_value = "SELECT $table_name.$col FROM $table_name "." WHERE " . implode(" AND ", $where_clause_array);
 			$sql_grab_random_value = rtrim($sql_grab_random_value,'WHERE ');
-			$sql_grab_random_value .= " LIMIT $offset,1";
+			
+			if (count($where_clause_array) == 0) {
+				$data = generateRandomValue($table_name,$col);
+				if ((substr($data,0,1) == 'x' || substr($data,0,1) == 'b') && substr($data,1,1) == "'")
+					$sql_grab_random_value .= " WHERE $table_name.$col > " . $data . " LIMIT 1";
+				else
+					$sql_grab_random_value .= " WHERE $table_name.$col > '" . $data . "' LIMIT 1";
+			}
+
+			else
+				$sql_grab_random_value .= " LIMIT 1";
+			
+			//echo $sql_grab_random_value . "\n";
+			//echo "$table_name,$col \n";
 			$result = mysql_query($sql_grab_random_value, $db_link);
 			$stderr_cursor_pos = "\033[55;0f";
-			if (!$result)
+			if (!$result) {
 				echo $stderr_cursor_pos."select sql failed in makeRandomWhereClause error code:".mysql_errno()." - ".mysql_error()." \n sql:$sql_grab_random_value\n";
+				exit(1);
+			}
 			$row = mysql_fetch_row($result);
 			$where_clause_array[] = "$table_name.$col = '".mysql_real_escape_string($row[0])."'"; 
 			// have a 1 in 2 chance to cut the where clause off where we are.

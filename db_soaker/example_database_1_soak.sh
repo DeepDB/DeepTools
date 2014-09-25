@@ -10,7 +10,7 @@ MYSQL_HOST=$3
 
 CONFIG="example_database_1_config.php"
 TRANSACTION_SIZE=100
-NUM_ROWS=100000
+NUM_ROWS=10000000
 NUM_CLIENTS=10
 rm $SCRIPTPATH/tmp.cache
 
@@ -21,7 +21,7 @@ if [ $? -ne 0 ]; then
 	exit;
 fi
 
-DATABASES="example_database_1 example_database_2"
+DATABASES="example_database_1"
 
 
 for DATABASE in ${DATABASES}; do

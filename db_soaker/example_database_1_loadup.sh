@@ -10,8 +10,8 @@ MYSQL_HOST=$3
 
 CONFIG="example_database_1_load_config.php"
 TRANSACTION_SIZE=500
-NUM_ROWS=100000000
-NUM_CLIENTS=32
+NUM_ROWS=10000000
+NUM_CLIENTS=42
 
 echo "Checking MySQL connection..."
 mysql -u"$MYSQL_USER" -p$MYSQL_PASS -h"$MYSQL_HOST" -e exit 2>/dev/null
