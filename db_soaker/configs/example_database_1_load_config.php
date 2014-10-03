@@ -17,7 +17,8 @@ $meta_data = array(
 'table2' => array(
 				array('col_name' => 'id',         'datatype' => 'int',      'method' => 'ignore',	'min' => 0,	'max' => 4294967295),
 				array('col_name' => 'column1',    'datatype' => 'varchar',  'method' => 'autoinc',	'min' => 0,	'max' => 100),
-				array('col_name' => 'column2',    'datatype' => 'timestamp','method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44')),
+				array('col_name' => 'column2',    'datatype' => 'timestamp','method' => 'random',	'min' => '2005-11-12 4:55:44',	'max' => '2014-09-08 2:15:44'),
+				array('col_name' => 'column3',    'datatype' => 'int',      'method' => 'random',	'min' => 0,	'max' => 4294967295)),
 'table3' => array(
 				array('col_name' => 'column1',    'datatype' => 'binary',   'method' => 'random',	'min' => 0,	'max' => 16),
 				array('col_name' => 'column2',    'datatype' => 'varchar',  'method' => 'random',	'min' => 0,	'max' => 20),
@@ -42,7 +43,6 @@ $meta_data = array(
 // this helps with making psudo random data and also controlling the cardinality to a degree
 $fixed_data = 	array( 	'table1.col1' => array('INFO','WARNING','ERROR','DEBUG','FATAL'),
 			'sometable.somecolumn' => array('thing','somethingelse','someotherthing','*'));
-
 
 $what_to_do = array(
 			'table1'		 => array('CRUD' => array('INSERT' => 100, 'SELECT' => 0, 'UPDATE' => 0, 'DELETE' => 0, 'REPLACE' => 0), 'SLEEP' => array('MIN' => 0, 'MAX' => 0)),

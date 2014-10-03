@@ -200,6 +200,9 @@ if ($mode == 'insert') {
 	exit(1);
 }
 
+//print_r($index_info);
+//exit();
+
 $i 			= 1;	
 $deletes 	= 0;
 $updates 	= 0;
@@ -380,17 +383,7 @@ while ($i <= $total_rows) {
 		findForeignKeyRelationships($table_name,$the_joins);
 		$the_joins = array_slice($the_joins,0,rand(1,count($the_joins)));
 
-		//$colums_to_update = array();
 		$colums_to_update = findColumnsToUpdate($table_name);
-
-		// check for gap lock potential
-		// if primary key is in the colums_to_update lets remove it for now
-		// TODO . clean this up to work in any case.
-
-//		foreach ($colums_to_update as $key => $value) {
-//			if ($value['col_name'] == 'id')
-//				unset($colums_to_update[$key]);
-//		}
 
 		shuffle($colums_to_update);
 		if (count($colums_to_update) == 0) {
@@ -487,10 +480,11 @@ while ($i <= $total_rows) {
 	} 
 }
 
-mysql_query("COMMIT;", $db_link);
-if ($write_successful_sql_to_disk)
-	logToReplayLog("COMMIT;\n",$tmpfname_replay);
-
+if ($mode == 'insert' && $transaction_count >= $transaction_size && $transaction_size > 1) {
+	mysql_query("COMMIT;", $db_link);
+	if ($write_successful_sql_to_disk)
+		logToReplayLog("COMMIT;\n",$tmpfname_replay);
+}	
 
 if ($display == "pretty") {
 	printf($mask, "                                        ", "       ","       ","       ","       ");
@@ -604,23 +598,34 @@ function findForeignKeyRelationships($table,&$fk_tables)
 
 function findColumnsToUpdate($table_name)
 {
-	global $meta_data;
+	global $meta_data, $global_options;
+
 	$colums_to_update = array();
 	$infinity_check = 0;
 	while (count($colums_to_update) == 0) { 
 		foreach ($meta_data[$table_name] as $value) {
-			// dont pick the column if its marked as ignore
-			if ($value['method'] != "ignore" && rand(0,2))
-				$colums_to_update[] = $value;
+			// dont pick the column if its marked as ignore or if we dont want primary keys updated
+			if ($value['method'] != "ignore" && rand(0,2)) {
+				if (!((isset($global_options['update_primary_key_columns']) && $global_options['update_primary_key_columns'] === false)  &&  column_in_primary($table_name,$value['col_name'])))
+					$colums_to_update[] = $value;
+			}
 		}
 		$infinity_check++;
-		if ($infinity_check > 100) {
-			//echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
+		if ($infinity_check > 10) {
+			echo "Infinite loop when looking for columns to update for table $table_name. exiting.\n";
 			return $colums_to_update;
 		}
 	}
 	return $colums_to_update;
 }
+
+function column_in_primary($table,$column) {
+	global $index_info;
+	if (isset($index_info[$table]['PRIMARY']))
+		return in_array($column, $index_info[$table]['PRIMARY']);
+	return false;
+}
+
 
 function makeRandomWhereClause($index_info,$table_name,$db_link, $return_array = false)
 {

@@ -53,4 +53,7 @@ $what_to_do = array(
 			'table4'		 => array('CRUD' => array('INSERT' => 100, 'SELECT' => 100, 'UPDATE' => 100, 'DELETE' => 10, 'REPLACE' => 100), 'SLEEP' => array('MIN' => 0, 'MAX' => 0)),
 			'table5'		 => array('CRUD' => array('INSERT' => 100, 'SELECT' => 100, 'UPDATE' => 100, 'DELETE' => 10, 'REPLACE' => 100), 'SLEEP' => array('MIN' => 0, 'MAX' => 0)));
 
+$global_options = array(
+				 			'update_primary_key_columns' => false
+						);
 
